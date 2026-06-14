@@ -7,17 +7,21 @@ import com.jpmc.midascore.entity.UserRecord;
 import com.jpmc.midascore.repository.UserRepository;
 import com.jpmc.midascore.repository.TransactionRepository;
 import com.jpmc.midascore.entity.TransactionRecord;
+import com.jpmc.midascore.foundation.Incentive;
+import org.springframework.web.client.RestTemplate;
 
 @Component
 public class TransactionListener {
 
     private final UserRepository userRepository;
     private final TransactionRepository transactionRepository;
+    private final RestTemplate restTemplate;
 
     public TransactionListener(UserRepository userRepository,
                                TransactionRepository transactionRepository) {
         this.userRepository = userRepository;
         this.transactionRepository = transactionRepository;
+        this.restTemplate = new RestTemplate();
     }
 
 
@@ -41,11 +45,20 @@ public class TransactionListener {
             return;
         }
 
+        Incentive incentive = restTemplate.postForObject(
+                "http://localhost:8080/incentive",
+                transaction,
+                Incentive.class);
+
+        float incentiveAmount = incentive.getAmount();
+
         sender.setBalance(
                 sender.getBalance() - transaction.getAmount());
 
         recipient.setBalance(
-                recipient.getBalance() + transaction.getAmount());
+                recipient.getBalance()
+                        + transaction.getAmount()
+                        + incentiveAmount);
 
         userRepository.save(sender);
         userRepository.save(recipient);
@@ -54,7 +67,8 @@ public class TransactionListener {
                 new TransactionRecord(
                         sender,
                         recipient,
-                        transaction.getAmount());
+                        transaction.getAmount(),
+                        incentiveAmount);
 
         transactionRepository.save(transactionRecord);
 
